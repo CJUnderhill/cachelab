@@ -2,13 +2,15 @@
  * cjunderhill-sccoache
  */
 
-#include "cachelab.h"
 #include <time.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <ctype.h>
+
+#include "cachelab.h"
+
 #define MAXLINE 250
 
 //initializes the base functions
@@ -151,24 +153,24 @@ void deinitialize()
  */
 void operate_L(void *addr, int size) {
 
-	//
+	// Initialize pointer to current set in cache
     struct set *current_set = &g_set[get_set(addr)];
 
-    int i = 0, full = 1;
-    int empty_item = 0;         // Track the empty item
-    int last_item = 0;          // Track the evict item
+    int i = 0, is_full = 1;
+    int empty_item = 0;         // Track the empty entry
+    int last_entry = 0;          // Track the evict entry
     int last_time = current_set->last_accessed[0];  
 
     // For each line in the set 
     for (; i < E; i++) {   
-        // Find and update the access time if entry is valid
+        // Find and update the access time if entry is valid and has matching tag
         if (current_set->valid[i] == 1 && get_tag(addr) == current_set->tag[i]) {
-            current_set->last_accessed[i] = ++accesstime;
+            current_set->last_accessed[i] = accesstime++;
             break;
 
         // Else if entry is not valid, then it's considered empty and the cache is not full
         } else if (current_set->valid[i] == 0) {
-            full = 0;
+            is_full = 0;
             empty_item = i;
 
         // Else the entry is valid but the tag is not equal
@@ -176,7 +178,7 @@ void operate_L(void *addr, int size) {
 
             // Track LRU item, which will be evicted
             if (current_set->last_accessed[i] < last_time) {
-                last_item = i;
+                last_entry = i;
                 last_time = current_set->last_accessed[i];
             }
         }
@@ -187,18 +189,17 @@ void operate_L(void *addr, int size) {
         misses++;
 
         // If cache is full, evict
-        if (full) {
-        	//
-            current_set->tag[last_item] = get_tag(addr);
-            current_set->last_accessed[last_item] = ++accesstime;
+        if (is_full) {
+            current_set->last_accessed[last_entry] = accesstime++;
+            current_set->tag[last_entry] = get_tag(addr);
             evicts++;
 
         // Otherwise it's simply a miss
         } else {
         	// Set line bit to valid, assign an address to the cache, and set the access time
+            current_set->last_accessed[empty_item] = accesstime++;
             current_set->valid[empty_item] = 1;
             current_set->tag[empty_item] = get_tag(addr);
-            current_set->last_accessed[empty_item] = ++accesstime;
         }
     // Otherwise it's a hit!
     } else {
@@ -217,21 +218,24 @@ void operate_L(void *addr, int size) {
  */
 void operate_S(void *addr, int size) {
     
-    //
+    // Initialize pointer to current set in cache
     struct set *current_set = &g_set[get_set(addr)];
 
     int i = 0;
-    for (; i < E; ++i) {
-    	// find
+
+    // For each line in the set
+    for (; i < E; i++) {
+    	// Find and update the access time if entry is valid and has matching tag
         if (current_set->valid[i] == 1 && get_tag(addr) == current_set->tag[i]) {
-            current_set->last_accessed[i] = ++accesstime;
+            current_set->last_accessed[i] = accesstime++;
             break;
         }
     } 
 
-    // Store miss
+    // If we have a miss, load the data
     if (i == E) {
-        operate_L(addr, size);   // if miss, then load
+        operate_L(addr, size);
+    // Otherwise it's a hit!
     } else {
         hits++;
     }
@@ -258,7 +262,10 @@ void operate_M(void *addr, int size) {
  * Returns: void
  */
 int get_set(void *addr) {
-    return (int) (( (long) addr >> b) & ((1 << s) - 1) );
+
+	int sbit = (int) ((1 << s) - 1);
+
+    return ((long) addr >> b) & sbit;
 }
 
 /* 
@@ -268,5 +275,8 @@ int get_set(void *addr) {
  * Returns: void
  */
 long get_tag(void *addr) {
-    return (long) ( (long) addr >> (s + b));
+
+	int sb_bits = (s + b);
+
+    return (long) addr >> sb_bits;
 }
