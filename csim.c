@@ -173,14 +173,14 @@ void operate_M(void *addr, int size) {
  * Returns: void
  */
 //function to find the program parameters
-void get_operator(int argc, char **argv){
+void get_operator(int argc, char **argv) {
     int toggle;	// Holds input parameter character for comparison
 
     // Process while there are still remaining unhandled parameters (where getopt then returns -1)
-    while ((toggle = getopt(argc, argv, "s:E:b:t:")) != -1){
+    while ((toggle = getopt(argc, argv, "s:E:b:t:")) != -1) {
 
     	// Process input argument
-    	if(toggle == 's'){
+    	if(toggle == 's') {
             s = atoi(optarg);
     	} else if(toggle == 'E') {
 			E = atoi(optarg);
@@ -190,7 +190,7 @@ void get_operator(int argc, char **argv){
 			trace_file = optarg;
     	} else { // Error case
             printf("Error: Illegal operation!\n");
-            exit(0);
+            exit(0);	// Terminate
     	}
 
     }
@@ -200,26 +200,26 @@ void get_operator(int argc, char **argv){
  * initialize - Initialize cache data structure in memory
  * Returns: void
  */
-void initialize(){
+void initialize() {
     int S = (1 << s);	// Calc number of sets (2^s)
 
     // Handle nonpositive set counts with error
-    if (S <= 0){
+    if (S <= 0) {
         fprintf(stderr, "Error: Attempted to initialize cache with nonpositive number of sets!\n");
-        exit(0);
+        exit(0);	// Terminate
     }
 
     // Allocate memory for all sets in cache
     g_set = (struct set*) malloc(sizeof(struct set) * S);
     
     // Allocate memory for data in each set
-    for (int i = 0; i < S; i++){
+    for (int i = 0; i < S; i++) {
         g_set[i].last_accessed = (clock_t *) malloc(sizeof(clock_t) * E);
         g_set[i].valid = (int *) malloc(sizeof(int) * E);
         g_set[i].tag = (long *) malloc(sizeof(long) * E);
 
         // Initialize all blocks on each line to empty
-        for(int j = 0 ; j < E; j++){
+        for(int j = 0 ; j < E; j++) {
             g_set[i].last_accessed[j] = 0;
             g_set[i].valid[j] = 0;
             g_set[i].tag[j] = 0;
@@ -231,13 +231,13 @@ void initialize(){
  * deinitialize - Free cache data structure in memory
  * Returns: void
  */
-void deinitialize(){
+void deinitialize() {
     int S = (1 << s);	// Calc number of sets (2^s)
 
     g_set = (struct set*) malloc(sizeof(struct set) * S);
 
     // Sequentially free memory for each set in the cache
-    for (int i = 0; i < S; i++){
+    for (int i = 0; i < S; i++) {
         free(g_set[i].last_accessed);
         free(g_set[i].valid);
         free(g_set[i].tag);
@@ -247,34 +247,56 @@ void deinitialize(){
     free(g_set);
 }
 
-//the main function
-int main(int argc, char **argv){
-    get_operator(argc, argv); //variables for the operations
-    initialize(); //calls the initialize function
-   
-    FILE *fp = fopen(trace_file, "r"); //get the trace file
-    
-    if (fp == NULL){ //checks to see if the trace file is valid
-        fprintf(stderr, "Error 404: trace_file not found\n");
-        exit(0);
-    } 
-    char op[INPUT_CAP];
-    void *addr;
-    int size;
-    char buf[INPUT_CAP];
-    while (fgets(buf, INPUT_CAP, fp) != NULL){ //while loops for the variable operations
-        sscanf(buf, "%s %p,%d", op, &addr, &size);
-        if (*op == 'S'){ //for the S operator
+/*
+ * main - Entry point for the program
+ * Params:
+ *	argc - Argument count
+ *	**argv - Pointer to argument array
+ * Returns: 0 if success
+ */
+int main(int argc, char **argv) {
+
+	// Process input parameters
+    get_operator(argc, argv);
+
+    // Initialize cache data structure
+    initialize();
+
+    char operation[INPUT_CAP];	// Cache operation
+    void *addr;					// Operation memory address
+    int size;					// Size (in bytes) accessed by operation
+    char buf[INPUT_CAP];		// Hold line currently read from the file
+    FILE *fp = fopen(trace_file, "r");	// Hold pointer to the specified trace file    
+
+    // Throw error if trace file is invalid
+    if (fp == NULL) {
+        fprintf(stderr, "Error 404: trace file not found!\n");
+        exit(0);	// Terminate
+    }
+
+    // For each line in the cache file
+    while (fgets(buf, INPUT_CAP, fp) != NULL) {
+
+    	// Parse the line, store operation, address, and size
+        sscanf(buf, "%s %p,%d", operation, &addr, &size);
+
+        // Perform relevant operation based on specified operation
+        if (*operation == 'S') {
             operate_S(addr, size);
         }
-        else if (*op == 'M'){ //for the M operator
+        else if (*operation == 'M') {
             operate_M(addr, size);
         }
-        else if (*op == 'L'){ //for the L operator
+        else if (*operation == 'L') {
             operate_L(addr, size);
         }
     }
+
+    // Free cache data structure
     deinitialize();
-    printSummary(hits, misses, evicts); //call to the output helper function
-    return 0;
+
+    // Print summary of cache simulation instructions
+    printSummary(hits, misses, evicts);
+
+    return 0;	// Indicate successful run
 }
